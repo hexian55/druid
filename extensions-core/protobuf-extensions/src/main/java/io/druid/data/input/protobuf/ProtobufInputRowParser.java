@@ -32,6 +32,7 @@ import io.druid.data.input.ByteBufferInputRowParser;
 import io.druid.data.input.InputRow;
 import io.druid.data.input.MapBasedInputRow;
 import io.druid.data.input.impl.ParseSpec;
+import io.druid.java.util.common.StringUtils;
 import io.druid.java.util.common.parsers.ParseException;
 import io.druid.java.util.common.parsers.Parser;
 
@@ -46,10 +47,10 @@ import java.util.Set;
 public class ProtobufInputRowParser implements ByteBufferInputRowParser
 {
   private final ParseSpec parseSpec;
-  private Parser<String, Object> parser;
   private final String descriptorFilePath;
   private final String protoMessageType;
-  private Descriptor descriptor;
+  private final Descriptor descriptor;
+  private Parser<String, Object> parser;
 
 
   @JsonCreator
@@ -62,7 +63,6 @@ public class ProtobufInputRowParser implements ByteBufferInputRowParser
     this.parseSpec = parseSpec;
     this.descriptorFilePath = descriptorFilePath;
     this.protoMessageType = protoMessageType;
-    this.parser = parseSpec.makeParser();
     this.descriptor = getDescriptor(descriptorFilePath);
   }
 
@@ -81,6 +81,11 @@ public class ProtobufInputRowParser implements ByteBufferInputRowParser
   @Override
   public InputRow parse(ByteBuffer input)
   {
+    if (parser == null) {
+      // parser should be created when it is really used to avoid unnecessary initialization of the underlying
+      // parseSpec.
+      parser = parseSpec.makeParser();
+    }
     String json;
     try {
       DynamicMessage message = DynamicMessage.parseFrom(descriptor, ByteString.copyFrom(input));
@@ -139,7 +144,7 @@ public class ProtobufInputRowParser implements ByteBufferInputRowParser
     Descriptor desc = dynamicSchema.getMessageDescriptor(messageType);
     if (desc == null) {
       throw new ParseException(
-          String.format(
+          StringUtils.format(
               "Protobuf message type %s not found in the specified descriptor.  Available messages types are %s",
               protoMessageType,
               messageTypes
